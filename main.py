@@ -12,3 +12,8 @@ app.include_router(auth.router)
 @app.get("/")
 def root():
     return {"status": "backend working"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
