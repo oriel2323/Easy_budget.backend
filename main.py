@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from database import engine, Base
 from routers import auth
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 # יצירת טבלאות אם לא קיימות
 Base.metadata.create_all(bind=engine)
@@ -24,4 +25,11 @@ def root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/health/db")
+def health_db():
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok", "db": "connected"}
+
 
