@@ -4,7 +4,7 @@ from routers import auth
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-
+#ניסויים
 # יצירת טבלאות אם לא קיימות
 Base.metadata.create_all(bind=engine)
 
