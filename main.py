@@ -7,12 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
-# יצירת טבלאות (למרות שאנחנו משתמשים ב-Alembic, זה לא מזיק)
+# יצירת טבלאות (למקרה ש-Alembic לא הריץ הכל)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# 1. הגדרת CORS - מאפשר לפרונטאנד לדבר עם ה-Backend
+# 1. הגדרת CORS - חשוב מאוד כדי שהדפדפן יאפשר לאתר לדבר עם ה-Backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,10 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. הכללת הראוטרים הקיימים שלך
+# 2. הכללת הראוטרים שלך (כמו ה-Auth)
 app.include_router(auth.router)
 
-# --- בדיקות תקינות (Health Checks) ---
+# --- Endpoints של ה-Backend ---
 
 @app.get("/health")
 def health_check():
@@ -32,26 +32,34 @@ def health_check():
 
 @app.get("/health/db")
 def health_db():
+    # בדיקה שהחיבור לדאטהבייס תקין
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok", "db": "connected"}
 
-# --- הגשת הפרונטאנד (Static Files) ---
+# --- ניהול הפרונטאנד (Static Files) ---
 
-# בודק אם תיקיית static קיימת ומחבר אותה
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+# מוצאים את הנתיב המלא לתיקיית static
+static_path = os.path.join(os.getcwd(), "static")
 
+# אם התיקייה קיימת, אנחנו "מחברים" אותה לשרת
+if os.path.exists(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# הנתיב הראשי - זה מה שפותח את האתר כשנכנסים ללינק של Railway
 @app.get("/")
 def read_index():
-    index_path = os.path.join(os.getcwd(), "static", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
+    index_file = os.path.join(static_path, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
     
-    # אם הגעת לכאן, הקוד יגיד לך מה הוא רואה בתיקייה שלו
-    files_in_dir = os.listdir(os.getcwd())
+    # הודעת שגיאה מפורטת למקרה שהקובץ חסר ב-Railway
     return {
-        "error": "index.html not found",
-        "current_directory": os.getcwd(),
-        "files_found": files_in_dir
+        "status": "backend working", 
+        "message": "Frontend file (static/index.html) not found",
+        "debug_info": {
+            "current_dir": os.getcwd(),
+            "static_folder_exists": os.path.exists(static_path),
+            "files_in_root": os.listdir(os.getcwd())
+        }
     }
