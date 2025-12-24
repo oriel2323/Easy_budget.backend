@@ -11,10 +11,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # מאפשר לכל אתר (כולל Vercel) לגשת
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # מאפשר את כל סוגי הבקשות (POST, GET וכו')
+    allow_headers=["*"],  # מאפשר את כל סוגי ה-Headers
 )
 
 app.include_router(auth.router)
