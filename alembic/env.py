@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), ".."
 
 from database import Base  # noqa: E402
 from models import user  # noqa: F401, E402  # Import models so Alembic can "autogenerate"
+from models import business_profile  # noqa: F401, E402
 
 config = context.config
 
