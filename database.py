@@ -1,24 +1,24 @@
-import os  # תוודא שהשורה הזו קיימת למעלה
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+import os
 
-# במקום לרשום את הקישור כאן, אנחנו אומרים לקוד:
-# "קח את מה שרשום ב-Variables של Railway תחת השם DATABASE_URL"
-DATABASE_URL = os.getenv("DATABASE_URL")
+# קבלת הכתובת ממשתני הסביבה (ב-Railway)
+# או ברירת מחדל ל-SQLite (במחשב המקומי)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./easybudget.db")
 
-# אם אנחנו במחשב שלך ואין DATABASE_URL, הוא ישתמש ב-SQLite כגיבוי
-if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///./easybudget.db"
-
-# תיקון פורמט עבור Postgres (Railway משתמש ב-postgres:// אבל SQLAlchemy צריכה postgresql://)
+# תיקון קטן שנדרש לפעמים ב-Railway/Heroku (הם שולחים postgres:// וצריך postgresql://)
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# יצירת המנוע
+# check_same_thread נחוץ רק ל-SQLite וגורם לקריסה ב-Postgres
+connect_args = {}
 if "sqlite" in DATABASE_URL:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(DATABASE_URL)
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(
+    DATABASE_URL, connect_args=connect_args
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 Base = declarative_base()
