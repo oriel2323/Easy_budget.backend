@@ -32,3 +32,12 @@ def health_db():
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok", "db": "connected"}
+
+@app.get("/debug/db")
+def debug_db():
+    with engine.connect() as conn:
+        db = conn.execute(text("select current_database()")).scalar()
+        schema = conn.execute(text("select current_schema()")).scalar()
+        cnt = conn.execute(text("select count(*) from users")).scalar()
+    return {"database": db, "schema": schema, "users_count": cnt}
+
