@@ -4,9 +4,13 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.user import User
 from models.business_profile import BusinessProfile
-from schemas.business_profile import BusinessProfileCreate, BusinessProfileUpdate, BusinessProfileOut
+from schemas.business_profiles import (
+    BusinessProfileCreate,
+    BusinessProfileUpdate,
+    BusinessProfileOut,
+)
 
-router = APIRouter(prefix="/business-profile", tags=["Business Profile"])
+router = APIRouter(prefix="/business-profiles", tags=["Business Profiles"])
 
 
 def get_db():
@@ -26,45 +30,47 @@ def get_business_profile(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}", response_model=BusinessProfileOut)
-def create_or_update_business_profile(
-    user_id: int,
-    payload: BusinessProfileCreate,
-    db: Session = Depends(get_db),
+def create_or_replace_business_profile(
+    user_id: int, payload: BusinessProfileCreate, db: Session = Depends(get_db)
 ):
-    # לוודא שהיוזר קיים
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     profile = db.query(BusinessProfile).filter(BusinessProfile.user_id == user_id).first()
-
-    if not profile:
-        profile = BusinessProfile(user_id=user_id)
+    if profile:
+        # replace existing (id stays the same)
+        profile.business_name = payload.business_name
+        profile.phone = payload.phone
+        profile.address = payload.address
+    else:
+        profile = BusinessProfile(
+            user_id=user_id,
+            business_name=payload.business_name,
+            phone=payload.phone,
+            address=payload.address,
+        )
         db.add(profile)
-
-    # עדכון שדות (גם ב-create וגם ב-update)
-    profile.business_name = payload.business_name
-    profile.phone = payload.phone
-    profile.address = payload.address
 
     db.commit()
     db.refresh(profile)
     return profile
 
 
-@router.patch("/{user_id}", response_model=BusinessProfileOut)
-def patch_business_profile(
-    user_id: int,
-    payload: BusinessProfileUpdate,
-    db: Session = Depends(get_db),
+@router.put("/{user_id}", response_model=BusinessProfileOut)
+def update_business_profile(
+    user_id: int, payload: BusinessProfileUpdate, db: Session = Depends(get_db)
 ):
     profile = db.query(BusinessProfile).filter(BusinessProfile.user_id == user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Business profile not found")
 
-    data = payload.model_dump(exclude_unset=True)
-    for k, v in data.items():
-        setattr(profile, k, v)
+    if payload.business_name is not None:
+        profile.business_name = payload.business_name
+    if payload.phone is not None:
+        profile.phone = payload.phone
+    if payload.address is not None:
+        profile.address = payload.address
 
     db.commit()
     db.refresh(profile)

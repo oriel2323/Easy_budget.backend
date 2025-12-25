@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from typing import Optional
 
 
@@ -9,7 +9,6 @@ class BusinessProfileBase(BaseModel):
 
 
 class BusinessProfileCreate(BusinessProfileBase):
-    # כרגע אין שדות חובה, אפשר להשאיר ריק ולהעלות בהמשך
     pass
 
 
@@ -18,7 +17,8 @@ class BusinessProfileUpdate(BusinessProfileBase):
 
 
 class BusinessProfileOut(BusinessProfileBase):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     user_id: int
+
+    class Config:
+        from_attributes = True
