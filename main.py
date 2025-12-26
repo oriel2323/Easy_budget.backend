@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from database import engine, Base
-from routers import auth, business_profiles, products
+from routers import auth, business_profiles, products, fixed_expenses
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+
 
 #ניסויים
 # יצירת טבלאות אם לא קיימות
@@ -20,6 +21,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(business_profiles.router)
 app.include_router(products.router)
+app.include_router(fixed_expenses.router)
 
 @app.get("/")
 def root():

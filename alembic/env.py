@@ -12,6 +12,8 @@ from database import Base  # noqa: E402
 from models import user  # noqa: F401, E402  # Import models so Alembic can "autogenerate"
 from models import business_profile  # noqa: F401, E402
 from models import product  # noqa
+from models import fixed_expense_category  # noqa: F401, E402
+from models import fixed_expense           # noqa: F401, E402
 
 
 config = context.config

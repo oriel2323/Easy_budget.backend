@@ -20,3 +20,9 @@ class User(Base):
     "Product",
     back_populates="user",
     cascade="all, delete-orphan",)
+
+    fixed_expenses = relationship(
+    "FixedExpense",
+    back_populates="user",
+    cascade="all, delete-orphan",)
+
