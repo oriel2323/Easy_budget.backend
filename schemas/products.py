@@ -1,24 +1,20 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
-
 
 class ProductBase(BaseModel):
     name: str
-    price: float
-    avg_monthly_qty: int
-    unit_cost: float
-
+    price: float = Field(gt=0)
+    avg_monthly_qty: int = Field(gt=0)
+    unit_cost: float = Field(gt=0)
 
 class ProductCreate(ProductBase):
     pass
 
-
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
-    price: Optional[float] = None
-    avg_monthly_qty: Optional[int] = None
-    unit_cost: Optional[float] = None
-
+    price: Optional[float] = Field(default=None, gt=0)
+    avg_monthly_qty: Optional[int] = Field(default=None, gt=0)
+    unit_cost: Optional[float] = Field(default=None, gt=0)
 
 class ProductOut(ProductBase):
     id: int
