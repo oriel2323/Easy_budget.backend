@@ -9,10 +9,14 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     full_name = Column(String)
     password = Column(String)
-    
+
     business_profile = relationship(
     "BusinessProfile",
     back_populates="user",
     uselist=False,
-    cascade="all, delete-orphan",
-)
+    cascade="all, delete-orphan",)
+
+    products = relationship(
+    "Product",
+    back_populates="user",
+    cascade="all, delete-orphan",)
