@@ -1,7 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from typing import Literal, Dict
+from decimal import Decimal
 
 Group = Literal["cogs", "ga"]
+
 
 class FixedExpenseRowOut(BaseModel):
     category_id: int
@@ -9,11 +11,14 @@ class FixedExpenseRowOut(BaseModel):
     label: str
     group: Group
     sort_order: int
-    monthly_amount: float
+    monthly_amount: Decimal
 
-class FixedExpenseUpsertItem(BaseModel):
-    category_id: int
-    monthly_amount: float = Field(ge=0)
+    class Config:
+        from_attributes = True
 
 class FixedExpenseUpsertRequest(BaseModel):
-    items: list[FixedExpenseUpsertItem]
+    # מפתח = code של קטגוריה, ערך = סכום חודשי
+    amounts: Dict[str, Decimal] = Field(default_factory=dict)
+
+    # אם תרצה להגביל גם “יותר מדי גדול”
+    # אפשר: Decimal = Field(ge=0, max_digits=12, decimal_places=2)

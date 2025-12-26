@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from database import SessionLocal
 from models.user import User
@@ -10,6 +9,7 @@ from schemas.fixed_expenses import FixedExpenseRowOut, FixedExpenseUpsertRequest
 
 router = APIRouter(prefix="/fixed-expenses", tags=["Fixed Expenses"])
 
+
 def get_db():
     db = SessionLocal()
     try:
@@ -17,15 +17,22 @@ def get_db():
     finally:
         db.close()
 
+
 @router.get("/{user_id}", response_model=list[FixedExpenseRowOut])
 def get_fixed_expenses(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    cats = db.query(FixedExpenseCategory).order_by(
-        FixedExpenseCategory.group, FixedExpenseCategory.sort_order, FixedExpenseCategory.id
-    ).all()
+    cats = (
+        db.query(FixedExpenseCategory)
+        .order_by(
+            FixedExpenseCategory.group,
+            FixedExpenseCategory.sort_order,
+            FixedExpenseCategory.id,
+        )
+        .all()
+    )
 
     values = db.query(FixedExpense).filter(FixedExpense.user_id == user_id).all()
     by_cat = {v.category_id: v for v in values}
@@ -33,46 +40,66 @@ def get_fixed_expenses(user_id: int, db: Session = Depends(get_db)):
     out = []
     for c in cats:
         v = by_cat.get(c.id)
-        out.append(FixedExpenseRowOut(
-            category_id=c.id,
-            code=c.code,
-            label=c.label,
-            group=c.group,
-            sort_order=c.sort_order,
-            monthly_amount=float(v.monthly_amount) if v else 0.0,
-        ))
+        out.append(
+            FixedExpenseRowOut(
+                category_id=c.id,
+                code=c.code,
+                label=c.label,
+                group=c.group,
+                sort_order=c.sort_order,
+                monthly_amount=v.monthly_amount if v else 0,
+            )
+        )
     return out
 
 
-@router.put("/{user_id}", response_model=dict)
+@router.put("/{user_id}", response_model=list[FixedExpenseRowOut])
 def upsert_fixed_expenses(user_id: int, payload: FixedExpenseUpsertRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    cat_ids = [x.category_id for x in payload.items]
-    existing_cats = db.query(FixedExpenseCategory.id).filter(FixedExpenseCategory.id.in_(cat_ids)).all()
-    existing_cats = {cid for (cid,) in existing_cats}
-    missing = [cid for cid in cat_ids if cid not in existing_cats]
+    # אין מה לעדכן
+    if not payload.amounts:
+        return get_fixed_expenses(user_id, db)
+
+    # 1) לוודא שכל ה-codes קיימים
+    codes = list(payload.amounts.keys())
+    cats = db.query(FixedExpenseCategory).filter(FixedExpenseCategory.code.in_(codes)).all()
+    by_code = {c.code: c for c in cats}
+    missing = [code for code in codes if code not in by_code]
     if missing:
-        raise HTTPException(status_code=400, detail=f"Unknown category_id(s): {missing}")
+        raise HTTPException(status_code=400, detail=f"Unknown category code(s): {missing}")
 
-    existing = db.query(FixedExpense).filter(
-        FixedExpense.user_id == user_id,
-        FixedExpense.category_id.in_(cat_ids),
-    ).all()
-    by_cat = {e.category_id: e for e in existing}
+    # 2) להביא existing rows של המשתמש לקטגוריות האלה
+    cat_ids = [by_code[code].id for code in codes]
+    existing = (
+        db.query(FixedExpense)
+        .filter(
+            FixedExpense.user_id == user_id,
+            FixedExpense.category_id.in_(cat_ids),
+        )
+        .all()
+    )
+    existing_by_cat = {e.category_id: e for e in existing}
 
-    for item in payload.items:
-        row = by_cat.get(item.category_id)
+    # 3) upsert
+    for code, amount in payload.amounts.items():
+        cat = by_code[code]
+
+        row = existing_by_cat.get(cat.id)
         if row:
-            row.monthly_amount = item.monthly_amount
+            row.monthly_amount = amount
         else:
-            db.add(FixedExpense(
-                user_id=user_id,
-                category_id=item.category_id,
-                monthly_amount=item.monthly_amount,
-            ))
+            db.add(
+                FixedExpense(
+                    user_id=user_id,
+                    category_id=cat.id,
+                    monthly_amount=amount,
+                )
+            )
 
     db.commit()
-    return {"success": True}
+
+    # מחזיר את כל הרשימה (נוח לסוואגר ולפרונט)
+    return get_fixed_expenses(user_id, db)
