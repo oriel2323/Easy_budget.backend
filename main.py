@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from database import engine, Base
-from routers import auth, business_profiles, products, fixed_expenses
+from routers import auth, business_profiles, products, fixed_expenses, reports
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -22,6 +22,7 @@ app.include_router(auth.router)
 app.include_router(business_profiles.router)
 app.include_router(products.router)
 app.include_router(fixed_expenses.router)
+app.include_router(reports.router)
 
 @app.get("/")
 def root():
