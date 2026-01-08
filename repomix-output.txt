@@ -1,0 +1,1843 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+alembic.ini
+alembic/env.py
+alembic/README
+alembic/script.py.mako
+alembic/versions/20fdccbbf0d4_products_db_constraints_unique_checks.py
+alembic/versions/3817c0d8bfe1_products_unique_per_user_and_positive_.py
+alembic/versions/5529647c72e9_add_products.py
+alembic/versions/d2782c9b11d8_add_fixed_expenses_tables.py
+alembic/versions/dc2d983de6f8_add_business_profiles.py
+alembic/versions/eb42944148f2_initial_migration.py
+constants/fixed_expense_categories.py
+database.py
+docker-compose.yml
+main.py
+models/business_profile.py
+models/fixed_expense_category.py
+models/fixed_expense.py
+models/product.py
+models/user.py
+requirements.txt
+routers/auth.py
+routers/business_profiles.py
+routers/fixed_expenses.py
+routers/products.py
+routers/reports.py
+schemas/business_profiles.py
+schemas/fixed_expenses.py
+schemas/products.py
+schemas/reports.py
+schemas/users.py
+services/reporting.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+</file>
+
+<file path="alembic/README">
+Generic single-database configuration.
+</file>
+
+<file path="alembic/script.py.mako">
+"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision: str = ${repr(up_revision)}
+down_revision: Union[str, Sequence[str], None] = ${repr(down_revision)}
+branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
+depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    ${downgrades if downgrades else "pass"}
+</file>
+
+<file path="alembic/versions/20fdccbbf0d4_products_db_constraints_unique_checks.py">
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision: str = '20fdccbbf0d4'
+down_revision: Union[str, Sequence[str], None] = '3817c0d8bfe1'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
+    # שמות אפשריים ישנים (למקרה שכבר נוצרו פעם)
+    old_unique = ["uq_products_user_id_name"]
+    old_checks = [
+        "ck_products_price_positive",
+        "ck_products_avg_monthly_qty_positive",
+        "ck_products_unit_cost_positive",
+        "ck_products_price_gt0",
+        "ck_products_qty_gt0",
+        "ck_products_unit_cost_gt0",
+        "ck_products_unit_cost_ge0",
+    ]
+
+    if dialect == "sqlite":
+        # לבדוק מה קיים באמת לפני שמנסים drop (כי ב-SQLite זה נבדק רק ב-flush)
+        table_sql = bind.execute(
+            sa.text("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'")
+        ).scalar() or ""
+
+        idx_rows = bind.execute(sa.text("PRAGMA index_list('products')")).fetchall()
+        existing_indexes = {r[1] for r in idx_rows}  # name נמצא בעמודה 2
+
+        def has_check(name: str) -> bool:
+            return name in table_sql
+
+        def has_unique_index(name: str) -> bool:
+         return name in existing_indexes
+
+        with op.batch_alter_table("products", recreate="always") as batch_op:
+         # למחוק רק אם באמת קיים
+            if has_check("ck_products_price_positive"):
+                batch_op.drop_constraint("ck_products_price_positive", type_="check")
+            if has_check("ck_products_avg_monthly_qty_positive"):
+                batch_op.drop_constraint("ck_products_avg_monthly_qty_positive", type_="check")
+            if has_check("ck_products_unit_cost_positive"):
+                batch_op.drop_constraint("ck_products_unit_cost_positive", type_="check")
+
+            if has_check("ck_products_price_gt0"):
+                batch_op.drop_constraint("ck_products_price_gt0", type_="check")
+            if has_check("ck_products_qty_gt0"):
+                batch_op.drop_constraint("ck_products_qty_gt0", type_="check")
+            if has_check("ck_products_unit_cost_ge0"):
+                batch_op.drop_constraint("ck_products_unit_cost_ge0", type_="check")
+
+            # unique יכול להופיע כ-index
+            if has_unique_index("uq_products_user_id_name"):
+                batch_op.drop_constraint("uq_products_user_id_name", type_="unique")
+
+            # עכשיו ליצור את החוקים הנכונים
+            batch_op.create_unique_constraint("uq_products_user_id_name", ["user_id", "name"])
+            batch_op.create_check_constraint("ck_products_price_gt0", "price > 0")
+            batch_op.create_check_constraint("ck_products_qty_gt0", "avg_monthly_qty > 0")
+            batch_op.create_check_constraint("ck_products_unit_cost_ge0", "unit_cost >= 0")
+        return
+
+
+    # Postgres (Railway): אפשר DROP ... IF EXISTS ואז ליצור מחדש
+    for c in old_checks:
+        op.execute(f'ALTER TABLE products DROP CONSTRAINT IF EXISTS "{c}"')
+    for u in old_unique:
+        op.execute(f'ALTER TABLE products DROP CONSTRAINT IF EXISTS "{u}"')
+
+    op.create_unique_constraint("uq_products_user_id_name", "products", ["user_id", "name"])
+    op.create_check_constraint("ck_products_price_gt0", "products", "price > 0")
+    op.create_check_constraint("ck_products_qty_gt0", "products", "avg_monthly_qty > 0")
+    op.create_check_constraint("ck_products_unit_cost_ge0", "products", "unit_cost >= 0")
+
+
+def downgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
+    if dialect == "sqlite":
+        with op.batch_alter_table("products", recreate="always") as batch_op:
+            for name, typ in [
+                ("ck_products_unit_cost_ge0", "check"),
+                ("ck_products_qty_gt0", "check"),
+                ("ck_products_price_gt0", "check"),
+                ("uq_products_user_id_name", "unique"),
+            ]:
+                try:
+                    batch_op.drop_constraint(name, type_=typ)
+                except Exception:
+                    pass
+        return
+
+    op.drop_constraint("ck_products_unit_cost_ge0", "products", type_="check")
+    op.drop_constraint("ck_products_qty_gt0", "products", type_="check")
+    op.drop_constraint("ck_products_price_gt0", "products", type_="check")
+    op.drop_constraint("uq_products_user_id_name", "products", type_="unique")
+</file>
+
+<file path="alembic/versions/5529647c72e9_add_products.py">
+"""add products
+
+Revision ID: 5529647c72e9
+Revises: dc2d983de6f8
+Create Date: 2025-12-26 09:19:34.068350
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '5529647c72e9'
+down_revision: Union[str, Sequence[str], None] = 'dc2d983de6f8'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('products',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('price', sa.Numeric(precision=12, scale=2), nullable=False),
+    sa.Column('avg_monthly_qty', sa.Integer(), nullable=False),
+    sa.Column('unit_cost', sa.Numeric(precision=12, scale=2), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_products_id'), 'products', ['id'], unique=False)
+    op.create_index(op.f('ix_products_user_id'), 'products', ['user_id'], unique=False)
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_products_user_id'), table_name='products')
+    op.drop_index(op.f('ix_products_id'), table_name='products')
+    op.drop_table('products')
+    # ### end Alembic commands ###
+</file>
+
+<file path="alembic/versions/d2782c9b11d8_add_fixed_expenses_tables.py">
+"""add fixed expenses tables
+
+Revision ID: d2782c9b11d8
+Revises: 20fdccbbf0d4
+Create Date: 2025-12-26 14:24:10.998714
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision: str = "d2782c9b11d8"
+down_revision: Union[str, Sequence[str], None] = "20fdccbbf0d4"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # 1) create categories table first
+    op.create_table(
+        "fixed_expense_categories",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("code", sa.String(length=64), nullable=False),
+        sa.Column("label", sa.String(length=255), nullable=False),
+        sa.Column("group", sa.String(length=16), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_fixed_expense_categories_code"),
+        "fixed_expense_categories",
+        ["code"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_fixed_expense_categories_group"),
+        "fixed_expense_categories",
+        ["group"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_fixed_expense_categories_id"),
+        "fixed_expense_categories",
+        ["id"],
+        unique=False,
+    )
+
+    # 2) seed categories (now the table exists)
+    fixed_expense_categories = sa.table(
+        "fixed_expense_categories",
+        sa.column("code", sa.String),
+        sa.column("label", sa.String),
+        sa.column("group", sa.String),
+        sa.column("sort_order", sa.Integer),
+    )
+
+    op.bulk_insert(
+        fixed_expense_categories,
+        [
+            # COGS
+            {"code": "office_rent", "label": "שכירות משרד", "group": "cogs", "sort_order": 10},
+            {"code": "employees_salary", "label": "משכורת עובדים (עלות מעסיק)", "group": "cogs", "sort_order": 20},
+            {"code": "arnona", "label": "ארנונה", "group": "cogs", "sort_order": 30},
+            {"code": "utilities", "label": "חשמל, מים, גז", "group": "cogs", "sort_order": 40},
+            {"code": "work_software", "label": "תוכנות דיגיטליות לעבודה שוטפת", "group": "cogs", "sort_order": 50},
+            {"code": "office_supplies", "label": "ציוד משרדי ו / או ציוד עסקי מתכלה", "group": "cogs", "sort_order": 60},
+            # GA
+            {"code": "cpa", "label": "רואה חשבון", "group": "ga", "sort_order": 10},
+            {"code": "bookkeeping", "label": "הנהלת חשבונות שוטף", "group": "ga", "sort_order": 20},
+            {"code": "accounting_software", "label": "תוכנה דיגיטלית להנהלת חשבונות", "group": "ga", "sort_order": 30},
+            {"code": "marketing_design", "label": "שיווק - עיצובים גרפיים", "group": "ga", "sort_order": 40},
+            {"code": "marketing_digital", "label": "שיווק - פרסום בדיגיטל", "group": "ga", "sort_order": 50},
+            {"code": "marketing_print", "label": "פרסום בפרינט", "group": "ga", "sort_order": 60},
+            {"code": "website_maintenance", "label": "תחזוקת אתר שוטף", "group": "ga", "sort_order": 70},
+            {"code": "business_consulting", "label": "ייעוץ עסקי שוטף", "group": "ga", "sort_order": 80},
+            {"code": "phone_internet", "label": "טלפון ואינטרנט", "group": "ga", "sort_order": 90},
+            {"code": "insurance_third_party", "label": "ביטוח צד ג'", "group": "ga", "sort_order": 100},
+            {"code": "insurance_property", "label": "ביטוח רכוש", "group": "ga", "sort_order": 110},
+            {"code": "other_expense", "label": "הוצאה אחרת", "group": "ga", "sort_order": 120},
+        ],
+    )
+
+    # 3) create fixed_expenses table
+    op.create_table(
+        "fixed_expenses",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("category_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "monthly_amount",
+            sa.Numeric(precision=12, scale=2),
+            nullable=False,
+            server_default=sa.text("0"),
+        ),
+        sa.CheckConstraint("monthly_amount >= 0", name="ck_fixed_expenses_amount_ge0"),
+        sa.ForeignKeyConstraint(["category_id"], ["fixed_expense_categories.id"]),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "category_id", name="uq_fixed_expenses_user_category"),
+    )
+    op.create_index(op.f("ix_fixed_expenses_category_id"), "fixed_expenses", ["category_id"], unique=False)
+    op.create_index(op.f("ix_fixed_expenses_id"), "fixed_expenses", ["id"], unique=False)
+    op.create_index(op.f("ix_fixed_expenses_user_id"), "fixed_expenses", ["user_id"], unique=False)
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_index(op.f("ix_fixed_expenses_user_id"), table_name="fixed_expenses")
+    op.drop_index(op.f("ix_fixed_expenses_id"), table_name="fixed_expenses")
+    op.drop_index(op.f("ix_fixed_expenses_category_id"), table_name="fixed_expenses")
+    op.drop_table("fixed_expenses")
+
+    op.drop_index(op.f("ix_fixed_expense_categories_id"), table_name="fixed_expense_categories")
+    op.drop_index(op.f("ix_fixed_expense_categories_group"), table_name="fixed_expense_categories")
+    op.drop_index(op.f("ix_fixed_expense_categories_code"), table_name="fixed_expense_categories")
+    op.drop_table("fixed_expense_categories")
+</file>
+
+<file path="alembic/versions/dc2d983de6f8_add_business_profiles.py">
+"""add business_profiles
+
+Revision ID: dc2d983de6f8
+Revises: eb42944148f2
+Create Date: 2025-12-25 18:12:02.189162
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'dc2d983de6f8'
+down_revision: Union[str, Sequence[str], None] = 'eb42944148f2'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('business_profiles',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('business_name', sa.String(length=255), nullable=True),
+    sa.Column('phone', sa.String(length=50), nullable=True),
+    sa.Column('address', sa.String(length=255), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_business_profiles_id'), 'business_profiles', ['id'], unique=False)
+    op.create_index(op.f('ix_business_profiles_user_id'), 'business_profiles', ['user_id'], unique=True)
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_business_profiles_user_id'), table_name='business_profiles')
+    op.drop_index(op.f('ix_business_profiles_id'), table_name='business_profiles')
+    op.drop_table('business_profiles')
+    # ### end Alembic commands ###
+</file>
+
+<file path="alembic/versions/eb42944148f2_initial_migration.py">
+"""initial migration
+
+Revision ID: eb42944148f2
+Revises: 
+Create Date: 2025-12-24 21:28:01.705738
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'eb42944148f2'
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('users',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('email', sa.String(), nullable=True),
+    sa.Column('full_name', sa.String(), nullable=True),
+    sa.Column('password', sa.String(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.drop_index(op.f('ix_users_email'), table_name='users')
+    op.drop_table('users')
+    # ### end Alembic commands ###
+</file>
+
+<file path="constants/fixed_expense_categories.py">
+FIXED_EXPENSE_CATEGORIES = [
+    # COGS
+    {"code":"office_rent","label":"שכירות משרד","group":"cogs","sort_order":10},
+    {"code":"employees_salary","label":"משכורת עובדים (עלות מעסיק)","group":"cogs","sort_order":20},
+    {"code":"arnona","label":"ארנונה","group":"cogs","sort_order":30},
+    {"code":"utilities","label":"חשמל, מים, גז","group":"cogs","sort_order":40},
+    {"code":"work_software","label":"תוכנות דיגיטליות לעבודה שוטפת","group":"cogs","sort_order":50},
+    {"code":"office_supplies","label":"ציוד משרדי ו / או ציוד עסקי מתכלה","group":"cogs","sort_order":60},
+
+    # GA
+    {"code":"cpa","label":"רואה חשבון","group":"ga","sort_order":10},
+    {"code":"bookkeeping","label":"הנהלת חשבונות שוטף","group":"ga","sort_order":20},
+    {"code":"accounting_software","label":"תוכנה דיגיטלית להנהלת חשבונות","group":"ga","sort_order":30},
+    {"code":"marketing_design","label":"שיווק - עיצובים גרפיים","group":"ga","sort_order":40},
+    {"code":"marketing_digital","label":"שיווק - פרסום בדיגיטל","group":"ga","sort_order":50},
+    {"code":"marketing_print","label":"פרסום בפרינט","group":"ga","sort_order":60},
+    {"code":"website_maintenance","label":"תחזוקת אתר שוטף","group":"ga","sort_order":70},
+    {"code":"business_consulting","label":"ייעוץ עסקי שוטף","group":"ga","sort_order":80},
+    {"code":"phone_internet","label":"טלפון ואינטרנט","group":"ga","sort_order":90},
+    {"code":"insurance_third_party","label":"ביטוח צד ג'","group":"ga","sort_order":100},
+    {"code":"insurance_property","label":"ביטוח רכוש","group":"ga","sort_order":110},
+    {"code":"other_expense","label":"הוצאה אחרת","group":"ga","sort_order":120},
+]
+</file>
+
+<file path="docker-compose.yml">
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: easybudget
+      POSTGRES_PASSWORD: easybudget
+      POSTGRES_DB: easybudget
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
+</file>
+
+<file path="models/business_profile.py">
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+
+from database import Base
+
+
+class BusinessProfile(Base):
+    __tablename__ = "business_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # one-to-one: לכל user יש business_profile אחד
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+
+    business_name = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    address = Column(String(255), nullable=True)
+
+    user = relationship("User", back_populates="business_profile")
+</file>
+
+<file path="models/fixed_expense_category.py">
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
+from database import Base
+
+class FixedExpenseCategory(Base):
+    __tablename__ = "fixed_expense_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(64), nullable=False, unique=True, index=True)   # id פנימי יציב
+    label = Column(String(255), nullable=False)                          # עברית לתצוגה
+    group = Column(String(16), nullable=False, index=True)               # "cogs" / "ga"
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    user_values = relationship("FixedExpense", back_populates="category", cascade="all, delete-orphan")
+</file>
+
+<file path="models/fixed_expense.py">
+from sqlalchemy import Column, Integer, ForeignKey, Numeric, UniqueConstraint, CheckConstraint
+from sqlalchemy.orm import relationship
+from database import Base
+
+class FixedExpense(Base):
+    __tablename__ = "fixed_expenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("fixed_expense_categories.id"), nullable=False, index=True)
+
+    # מותר 0
+    monthly_amount = Column(Numeric(12, 2), nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "category_id", name="uq_fixed_expenses_user_category"),
+        CheckConstraint("monthly_amount >= 0", name="ck_fixed_expenses_amount_ge0"),
+    )
+
+    user = relationship("User", back_populates="fixed_expenses")
+    category = relationship("FixedExpenseCategory", back_populates="user_values")
+</file>
+
+<file path="routers/business_profiles.py">
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from database import SessionLocal
+from models.user import User
+from models.business_profile import BusinessProfile
+from schemas.business_profiles import (
+    BusinessProfileCreate,
+    BusinessProfileUpdate,
+    BusinessProfileOut,
+)
+
+router = APIRouter(prefix="/business-profiles", tags=["Business Profiles"])
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/{user_id}", response_model=BusinessProfileOut)
+def get_business_profile(user_id: int, db: Session = Depends(get_db)):
+    profile = db.query(BusinessProfile).filter(BusinessProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Business profile not found")
+    return profile
+
+
+@router.post("/{user_id}", response_model=BusinessProfileOut)
+def create_or_replace_business_profile(
+    user_id: int, payload: BusinessProfileCreate, db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    profile = db.query(BusinessProfile).filter(BusinessProfile.user_id == user_id).first()
+    if profile:
+        # replace existing (id stays the same)
+        profile.business_name = payload.business_name
+        profile.phone = payload.phone
+        profile.address = payload.address
+    else:
+        profile = BusinessProfile(
+            user_id=user_id,
+            business_name=payload.business_name,
+            phone=payload.phone,
+            address=payload.address,
+        )
+        db.add(profile)
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+@router.put("/{user_id}", response_model=BusinessProfileOut)
+def update_business_profile(
+    user_id: int, payload: BusinessProfileUpdate, db: Session = Depends(get_db)
+):
+    profile = db.query(BusinessProfile).filter(BusinessProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Business profile not found")
+
+    if payload.business_name is not None:
+        profile.business_name = payload.business_name
+    if payload.phone is not None:
+        profile.phone = payload.phone
+    if payload.address is not None:
+        profile.address = payload.address
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+</file>
+
+<file path="routers/reports.py">
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from database import SessionLocal
+from models.user import User
+from schemas.reports import PnLReportOut
+from services.reporting import build_pnl_report
+
+router = APIRouter(prefix="/reports", tags=["Reports"])
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/pnl/{user_id}", response_model=PnLReportOut)
+def get_pnl_report(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return build_pnl_report(db, user_id)
+</file>
+
+<file path="schemas/business_profiles.py">
+from pydantic import BaseModel
+from typing import Optional
+
+
+class BusinessProfileBase(BaseModel):
+    business_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class BusinessProfileCreate(BusinessProfileBase):
+    pass
+
+
+class BusinessProfileUpdate(BusinessProfileBase):
+    pass
+
+
+class BusinessProfileOut(BusinessProfileBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+</file>
+
+<file path="schemas/reports.py">
+from pydantic import BaseModel
+from typing import List, Optional
+from decimal import Decimal
+
+
+class TableRow(BaseModel):
+    key: str
+    label: str
+    values: List[Decimal]
+
+
+class TableSection(BaseModel):
+    title: str
+    rows: List[TableRow]
+    total_row: Optional[TableRow] = None
+
+
+class FullPnLTable(BaseModel):
+    columns: List[str]  # 12 חודשים + "שנתי"
+    sections: List[TableSection]
+
+
+class YearlySummaryRow(BaseModel):
+    key: str
+    label: str
+    value: Decimal
+
+
+class PnLReportOut(BaseModel):
+    columns: List[str]
+    table_full: FullPnLTable
+    table_yearly_summary: List[YearlySummaryRow]
+</file>
+
+<file path="services/reporting.py">
+from decimal import Decimal, ROUND_HALF_UP
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
+
+from models.product import Product
+from models.fixed_expense import FixedExpense
+from models.fixed_expense_category import FixedExpenseCategory
+
+
+MONTHS_HE = [
+    "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+    "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
+]
+COL_ANNUAL = "שנתי"
+
+
+def _d(x) -> Decimal:
+    # safe Decimal conversion
+    if isinstance(x, Decimal):
+        return x
+    return Decimal(str(x))
+
+
+def _money(x: Decimal) -> Decimal:
+    # 2 decimal places
+    return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _repeat_monthly_and_yearly(monthly: Decimal) -> list[Decimal]:
+    m = _money(monthly)
+    months = [m] * 12
+    yearly = _money(m * Decimal(12))
+    return months + [yearly]
+
+
+def _repeat_qty_and_yearly(qty: int) -> list[Decimal]:
+    m = Decimal(qty)
+    months = [m] * 12
+    yearly = m * Decimal(12)
+    return months + [yearly]
+
+
+def build_pnl_report(db: Session, user_id: int):
+    # --- Products ---
+    products: list[Product] = (
+        db.query(Product)
+        .filter(Product.user_id == user_id)
+        .order_by(Product.id)
+        .all()
+    )
+
+    # --- Fixed expense categories (always include all categories) ---
+    categories: list[FixedExpenseCategory] = (
+        db.query(FixedExpenseCategory)
+        .order_by(FixedExpenseCategory.group, FixedExpenseCategory.sort_order, FixedExpenseCategory.id)
+        .all()
+    )
+
+    # --- User fixed expenses (may be missing => 0) ---
+    expenses: list[FixedExpense] = (
+        db.query(FixedExpense)
+        .filter(FixedExpense.user_id == user_id)
+        .all()
+    )
+    expense_by_cat = {e.category_id: e for e in expenses}
+
+    # ---------- Section 1: Quantities ----------
+    qty_rows = []
+    qty_total_monthly = Decimal(0)
+
+    for p in products:
+        qty = int(p.avg_monthly_qty)
+        qty_total_monthly += Decimal(qty)
+        qty_rows.append(
+            {
+                "key": f"product_{p.id}_qty",
+                "label": p.name,
+                "values": _repeat_qty_and_yearly(qty),
+            }
+        )
+
+    qty_total_row = {
+        "key": "total_qty",
+        "label": 'סה"כ כמות מוצרים:',
+        "values": _repeat_qty_and_yearly(int(qty_total_monthly)),
+    }
+
+    # ---------- Section 2: Revenues ----------
+    rev_rows = []
+    rev_total_monthly = Decimal(0)
+
+    for p in products:
+        price = _d(p.price)
+        qty = Decimal(int(p.avg_monthly_qty))
+        monthly_rev = price * qty
+        rev_total_monthly += monthly_rev
+
+        rev_rows.append(
+            {
+                "key": f"product_{p.id}_revenue",
+                "label": p.name,
+                "values": _repeat_monthly_and_yearly(monthly_rev),
+            }
+        )
+
+    rev_total_row = {
+        "key": "total_revenue",
+        "label": 'סה"כ הכנסה חודשית:',
+        "values": _repeat_monthly_and_yearly(rev_total_monthly),
+    }
+
+    # ---------- Section 3: Production costs (unit_cost * qty) ----------
+    prod_cost_rows = []
+    prod_cost_total_monthly = Decimal(0)
+
+    for p in products:
+        unit_cost = _d(p.unit_cost)  # allowed 0
+        qty = Decimal(int(p.avg_monthly_qty))
+        monthly_cost = unit_cost * qty
+        prod_cost_total_monthly += monthly_cost
+
+        prod_cost_rows.append(
+            {
+                "key": f"product_{p.id}_production_cost",
+                "label": p.name,
+                "values": _repeat_monthly_and_yearly(monthly_cost),
+            }
+        )
+
+    prod_cost_total_row = {
+        "key": "total_production_cost",
+        "label": 'סה"כ עלויות ייצור:',
+        "values": _repeat_monthly_and_yearly(prod_cost_total_monthly),
+    }
+
+    # ---------- Section 4: Fixed expenses - COGS ----------
+    fixed_cogs_rows = []
+    fixed_cogs_total_monthly = Decimal(0)
+
+    for c in categories:
+        if c.group != "cogs":
+            continue
+        v = expense_by_cat.get(c.id)
+        monthly_amount = _d(v.monthly_amount) if v else Decimal(0)
+        fixed_cogs_total_monthly += monthly_amount
+
+        fixed_cogs_rows.append(
+            {
+                "key": c.code,
+                "label": c.label,
+                "values": _repeat_monthly_and_yearly(monthly_amount),
+            }
+        )
+
+    fixed_cogs_total_row = {
+        "key": "total_fixed_cogs",
+        "label": 'סה"כ הוצאות קבועות (עלות המכר)',
+        "values": _repeat_monthly_and_yearly(fixed_cogs_total_monthly),
+    }
+
+    # ---------- Gross profit ----------
+    gross_profit_monthly = rev_total_monthly - (prod_cost_total_monthly + fixed_cogs_total_monthly)
+    gross_profit_row = {
+        "key": "gross_profit",
+        "label": "רווח גולמי",
+        "values": _repeat_monthly_and_yearly(gross_profit_monthly),
+    }
+
+    # ---------- Section 6: Fixed expenses - GA ----------
+    fixed_ga_rows = []
+    fixed_ga_total_monthly = Decimal(0)
+
+    for c in categories:
+        if c.group != "ga":
+            continue
+        v = expense_by_cat.get(c.id)
+        monthly_amount = _d(v.monthly_amount) if v else Decimal(0)
+        fixed_ga_total_monthly += monthly_amount
+
+        fixed_ga_rows.append(
+            {
+                "key": c.code,
+                "label": c.label,
+                "values": _repeat_monthly_and_yearly(monthly_amount),
+            }
+        )
+
+    fixed_ga_total_row = {
+        "key": "total_fixed_ga",
+        "label": 'סה"כ הנהלה וכלליות:',
+        "values": _repeat_monthly_and_yearly(fixed_ga_total_monthly),
+    }
+
+    # ---------- Operating profit ----------
+    operating_profit_monthly = gross_profit_monthly - fixed_ga_total_monthly
+    operating_profit_row = {
+        "key": "operating_profit",
+        "label": "רווח תפעולי",
+        "values": _repeat_monthly_and_yearly(operating_profit_monthly),
+    }
+
+    # ---------- Build response sections ----------
+    columns = MONTHS_HE + [COL_ANNUAL]
+
+    sections = [
+        {"title": "כמות מכירות חודשית", "rows": qty_rows, "total_row": qty_total_row},
+        {"title": "הכנסה חודשית", "rows": rev_rows, "total_row": rev_total_row},
+        {"title": 'עלות ישירה - עלויות ייצור', "rows": prod_cost_rows, "total_row": prod_cost_total_row},
+        {"title": "הוצאות קבועות - עלות המכר", "rows": fixed_cogs_rows, "total_row": fixed_cogs_total_row},
+        {"title": "רווח גולמי", "rows": [gross_profit_row], "total_row": None},
+        {"title": "הוצאות קבועות - הנהלה וכלליות", "rows": fixed_ga_rows, "total_row": fixed_ga_total_row},
+        {"title": "רווח תפעולי", "rows": [operating_profit_row], "total_row": None},
+    ]
+
+    # ---------- Yearly summary (values are last column "שנתי") ----------
+    yearly = {
+        "revenue": _money(rev_total_monthly * Decimal(12)),
+        "production_cost": _money(prod_cost_total_monthly * Decimal(12)),
+        "fixed_cogs": _money(fixed_cogs_total_monthly * Decimal(12)),
+        "gross_profit": _money(gross_profit_monthly * Decimal(12)),
+        "fixed_ga": _money(fixed_ga_total_monthly * Decimal(12)),
+        "operating_profit": _money(operating_profit_monthly * Decimal(12)),
+    }
+
+    yearly_summary = [
+        {"key": "yearly_revenue", "label": 'סה"כ הכנסות שנתי', "value": yearly["revenue"]},
+        {"key": "yearly_production_cost", "label": 'סה"כ עלויות ייצור שנתי', "value": yearly["production_cost"]},
+        {"key": "yearly_fixed_cogs", "label": 'סה"כ הוצאות קבועות (עלות המכר) שנתי', "value": yearly["fixed_cogs"]},
+        {"key": "yearly_gross_profit", "label": "רווח גולמי שנתי", "value": yearly["gross_profit"]},
+        {"key": "yearly_fixed_ga", "label": 'סה"כ הנהלה וכלליות שנתי', "value": yearly["fixed_ga"]},
+        {"key": "yearly_operating_profit", "label": "רווח תפעולי שנתי", "value": yearly["operating_profit"]},
+    ]
+
+    return {
+        "columns": columns,
+        "table_full": {"columns": columns, "sections": sections},
+        "table_yearly_summary": yearly_summary,
+    }
+</file>
+
+<file path="alembic/versions/3817c0d8bfe1_products_unique_per_user_and_positive_.py">
+"""products unique per user and positive checks
+
+Revision ID: 3817c0d8bfe1
+Revises: 5529647c72e9
+Create Date: 2025-12-26 09:55:09.713342
+"""
+
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+
+revision: str = "3817c0d8bfe1"
+down_revision: Union[str, Sequence[str], None] = "5529647c72e9"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
+    # ✅ Postgres/MySQL/etc: רגיל
+    if dialect != "sqlite":
+        op.create_unique_constraint(
+            "uq_products_user_id_name",
+            "products",
+            ["user_id", "name"],
+        )
+
+        op.create_check_constraint(
+            "ck_products_price_positive",
+            "products",
+            "price > 0",
+        )
+        op.create_check_constraint(
+            "ck_products_avg_monthly_qty_positive",
+            "products",
+            "avg_monthly_qty > 0",
+        )
+        op.create_check_constraint(
+            "ck_products_unit_cost_positive",
+            "products",
+            "unit_cost > 0",
+        )
+        return
+
+    # ✅ SQLite: חייב batch mode כדי להוסיף constraints
+    with op.batch_alter_table("products", recreate="always") as batch_op:
+        batch_op.create_unique_constraint(
+            "uq_products_user_id_name",
+            ["user_id", "name"],
+        )
+        batch_op.create_check_constraint(
+            "ck_products_price_positive",
+            "price > 0",
+        )
+        batch_op.create_check_constraint(
+            "ck_products_avg_monthly_qty_positive",
+            "avg_monthly_qty > 0",
+        )
+        batch_op.create_check_constraint(
+            "ck_products_unit_cost_positive",
+            "unit_cost > 0",
+        )
+
+
+def downgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
+    if dialect != "sqlite":
+        op.drop_constraint("ck_products_unit_cost_positive", "products", type_="check")
+        op.drop_constraint("ck_products_avg_monthly_qty_positive", "products", type_="check")
+        op.drop_constraint("ck_products_price_positive", "products", type_="check")
+        op.drop_constraint("uq_products_user_id_name", "products", type_="unique")
+        return
+
+    with op.batch_alter_table("products", recreate="always") as batch_op:
+        batch_op.drop_constraint("ck_products_unit_cost_positive", type_="check")
+        batch_op.drop_constraint("ck_products_avg_monthly_qty_positive", type_="check")
+        batch_op.drop_constraint("ck_products_price_positive", type_="check")
+        batch_op.drop_constraint("uq_products_user_id_name", type_="unique")
+</file>
+
+<file path="models/product.py">
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy.orm import relationship
+from database import Base
+
+class Product(Base):
+    __tablename__ = "products"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_products_user_id_name"),
+        CheckConstraint("price > 0", name="ck_products_price_positive"),
+        CheckConstraint("avg_monthly_qty > 0", name="ck_products_avg_monthly_qty_positive"),
+        CheckConstraint("unit_cost > 0", name="ck_products_unit_cost_positive"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+
+    price = Column(Numeric(12, 2), nullable=False)
+    avg_monthly_qty = Column(Integer, nullable=False)
+    unit_cost = Column(Numeric(12, 2), nullable=False)
+
+    user = relationship("User", back_populates="products")
+</file>
+
+<file path="routers/auth.py">
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from database import SessionLocal
+from schemas.users import UserRegister, LoginRequest, UserOut
+from models.user import User
+
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@router.post("/register")
+def register(user: UserRegister, db: Session = Depends(get_db)):
+    exists = db.query(User).filter(User.email == user.email).first()
+    if exists:
+        return {"success": False, "message": "User already exists"}
+
+    new_user = User(
+        email=user.email,
+        password=user.password,   # שלב ראשון – בלי הצפנה עדיין
+        full_name=user.full_name
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"success": True, "user_id": new_user.id}
+
+@router.post("/login")
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user or user.password != data.password:
+        return {"success": False, "message": "Wrong email or password"}
+
+    return {"success": True, "user_id": user.id}
+
+@router.get("/admin/users", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+</file>
+
+<file path="routers/fixed_expenses.py">
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from database import SessionLocal
+from models.user import User
+from models.fixed_expense import FixedExpense
+from models.fixed_expense_category import FixedExpenseCategory
+from schemas.fixed_expenses import FixedExpenseRowOut, FixedExpenseUpsertRequest
+
+router = APIRouter(prefix="/fixed-expenses", tags=["Fixed Expenses"])
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/{user_id}", response_model=list[FixedExpenseRowOut])
+def get_fixed_expenses(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cats = (
+        db.query(FixedExpenseCategory)
+        .order_by(
+            FixedExpenseCategory.group,
+            FixedExpenseCategory.sort_order,
+            FixedExpenseCategory.id,
+        )
+        .all()
+    )
+
+    values = db.query(FixedExpense).filter(FixedExpense.user_id == user_id).all()
+    by_cat = {v.category_id: v for v in values}
+
+    out = []
+    for c in cats:
+        v = by_cat.get(c.id)
+        out.append(
+            FixedExpenseRowOut(
+                category_id=c.id,
+                code=c.code,
+                label=c.label,
+                group=c.group,
+                sort_order=c.sort_order,
+                monthly_amount=v.monthly_amount if v else 0,
+            )
+        )
+    return out
+
+
+@router.put("/{user_id}", response_model=list[FixedExpenseRowOut])
+def upsert_fixed_expenses(user_id: int, payload: FixedExpenseUpsertRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # אין מה לעדכן
+    if not payload.amounts:
+        return get_fixed_expenses(user_id, db)
+
+    # 1) לוודא שכל ה-codes קיימים
+    codes = list(payload.amounts.keys())
+    cats = db.query(FixedExpenseCategory).filter(FixedExpenseCategory.code.in_(codes)).all()
+    by_code = {c.code: c for c in cats}
+    missing = [code for code in codes if code not in by_code]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Unknown category code(s): {missing}")
+
+    # 2) להביא existing rows של המשתמש לקטגוריות האלה
+    cat_ids = [by_code[code].id for code in codes]
+    existing = (
+        db.query(FixedExpense)
+        .filter(
+            FixedExpense.user_id == user_id,
+            FixedExpense.category_id.in_(cat_ids),
+        )
+        .all()
+    )
+    existing_by_cat = {e.category_id: e for e in existing}
+
+    # 3) upsert
+    for code, amount in payload.amounts.items():
+        cat = by_code[code]
+
+        row = existing_by_cat.get(cat.id)
+        if row:
+            row.monthly_amount = amount
+        else:
+            db.add(
+                FixedExpense(
+                    user_id=user_id,
+                    category_id=cat.id,
+                    monthly_amount=amount,
+                )
+            )
+
+    db.commit()
+
+    # מחזיר את כל הרשימה (נוח לסוואגר ולפרונט)
+    return get_fixed_expenses(user_id, db)
+</file>
+
+<file path="routers/products.py">
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+
+from database import SessionLocal
+from models.product import Product
+from models.user import User
+from schemas.products import ProductCreate, ProductUpdate, ProductOut
+
+router = APIRouter(prefix="/products", tags=["Products"])
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@router.get("/{user_id}", response_model=list[ProductOut])
+def list_products(user_id: int, db: Session = Depends(get_db)):
+    return db.query(Product).filter(Product.user_id == user_id).all()
+
+@router.post("/{user_id}", response_model=ProductOut)
+def create_product(user_id: int, payload: ProductCreate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # friendly check (before DB constraint)
+    exists = (
+    db.query(Product)
+    .filter(Product.user_id == user_id, Product.name == payload.name)
+    .first())
+    if exists:
+        raise HTTPException(status_code=400, detail="Product name already exists for this user")
+
+    product = Product(user_id=user_id, **payload.model_dump())
+    db.add(product)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Product with this name already exists")
+
+    db.refresh(product)
+    return product
+
+@router.put("/{user_id}/{product_id}", response_model=ProductOut)
+def update_product(user_id: int, product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)):
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.user_id == user_id)
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    data = payload.model_dump(exclude_unset=True)
+
+    if "name" in data:
+        name_exists = (
+            db.query(Product)
+            .filter(
+                Product.user_id == user_id,
+                Product.name == data["name"],
+                Product.id != product_id,
+            )
+            .first()
+        )
+        if name_exists:
+            raise HTTPException(status_code=400, detail="Product name already exists for this user")
+
+    for k, v in data.items():
+        setattr(product, k, v)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Product with this name already exists")
+
+    db.refresh(product)
+    return product
+
+@router.delete("/{user_id}/{product_id}")
+def delete_product(user_id: int, product_id: int, db: Session = Depends(get_db)):
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.user_id == user_id)
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    db.delete(product)
+    db.commit()
+    return {"success": True}
+</file>
+
+<file path="schemas/fixed_expenses.py">
+from pydantic import BaseModel, Field
+from typing import Literal, Dict
+from decimal import Decimal
+
+Group = Literal["cogs", "ga"]
+
+
+class FixedExpenseRowOut(BaseModel):
+    category_id: int
+    code: str
+    label: str
+    group: Group
+    sort_order: int
+    monthly_amount: Decimal
+
+    class Config:
+        from_attributes = True
+
+class FixedExpenseUpsertRequest(BaseModel):
+    # מפתח = code של קטגוריה, ערך = סכום חודשי
+    amounts: Dict[str, Decimal] = Field(default_factory=dict)
+
+    # אם תרצה להגביל גם “יותר מדי גדול”
+    # אפשר: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+</file>
+
+<file path="schemas/users.py">
+from pydantic import BaseModel, EmailStr
+
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str | None = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserOut(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str | None = None
+
+    class Config:
+        from_attributes = True
+</file>
+
+<file path="schemas/products.py">
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class ProductBase(BaseModel):
+    name: str
+    price: float = Field(gt=0)
+    avg_monthly_qty: int = Field(gt=0)
+    unit_cost: float = Field(ge=0)  # מותר 0 (שירות/ייעוץ)
+
+class ProductCreate(ProductBase):
+    pass
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = Field(default=None, gt=0)
+    avg_monthly_qty: Optional[int] = Field(default=None, gt=0)
+    unit_cost: Optional[float] = Field(default=None, ge=0)  # מותר 0
+
+class ProductOut(ProductBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+</file>
+
+<file path="models/user.py">
+from sqlalchemy import Column, Integer, String
+from database import Base
+from sqlalchemy.orm import relationship
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    full_name = Column(String)
+    password = Column(String)
+
+    business_profile = relationship(
+    "BusinessProfile",
+    back_populates="user",
+    uselist=False,
+    cascade="all, delete-orphan",)
+
+    products = relationship(
+    "Product",
+    back_populates="user",
+    cascade="all, delete-orphan",)
+
+    fixed_expenses = relationship(
+    "FixedExpense",
+    back_populates="user",
+    cascade="all, delete-orphan",)
+</file>
+
+<file path="alembic/env.py">
+import os
+import sys
+from logging.config import fileConfig
+
+from sqlalchemy import engine_from_config, pool
+from alembic import context
+
+# Ensure project root is in PYTHONPATH (so "database" and "models" imports work)
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..")))
+
+from database import Base  # noqa: E402
+from models import user  # noqa: F401, E402  # Import models so Alembic can "autogenerate"
+from models import business_profile  # noqa: F401, E402
+from models import product  # noqa
+from models import fixed_expense_category  # noqa: F401, E402
+from models import fixed_expense           # noqa: F401, E402
+
+
+config = context.config
+
+# Use DATABASE_URL from environment (Railway) or fall back to local SQLite
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./easybudget.db")
+
+# Railway/Heroku sometimes provide postgres://, SQLAlchemy expects postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Override alembic.ini value at runtime so migrations run against the real DB
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
+
+# Configure logging
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# Metadata for autogenerate
+target_metadata = Base.metadata
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in offline mode."""
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online() -> None:
+    """Run migrations in online mode."""
+    section = config.get_section(config.config_ini_section) or {}
+
+    # Only SQLite needs check_same_thread
+    connect_args = {}
+    if DATABASE_URL.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+
+    connectable = engine_from_config(
+        section,
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+        connect_args=connect_args,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+</file>
+
+<file path="database.py">
+# database.py
+import os
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+
+# Read DATABASE_URL from environment (Railway/Prod) and allow local SQLite fallback.
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Prevent silent fallback to SQLite in production-like environments.
+# If Railway is running and DATABASE_URL is missing, crash fast with a clear error.
+if not DATABASE_URL:
+    is_production_like = bool(
+        os.getenv("RAILWAY_ENVIRONMENT")  # usually exists on Railway
+        or os.getenv("RAILWAY_PROJECT_ID")
+        or os.getenv("PORT")  # common on hosted envs
+    )
+
+    if is_production_like:
+        raise RuntimeError(
+            "DATABASE_URL is not set in the environment. "
+            "Set DATABASE_URL in Railway Variables (use the Railway Postgres connection string)."
+        )
+
+    # Local development fallback
+    DATABASE_URL = "sqlite:///./easybudget.db"
+
+# Some platforms provide postgres:// but SQLAlchemy expects postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# SQLite needs check_same_thread=False, Postgres must NOT use it.
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,  # helps prevent stale connections on cloud
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+</file>
+
+<file path="requirements.txt">
+alembic==1.17.2
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.12.0
+click==8.3.1
+colorama==0.4.6
+dnspython==2.8.0
+email-validator==2.3.0
+fastapi==0.123.7
+greenlet==3.2.4
+h11==0.16.0
+idna==3.11
+Mako==1.3.10
+MarkupSafe==3.0.3
+pydantic==2.12.5
+pydantic_core==2.41.5
+python-multipart==0.0.20
+SQLAlchemy==2.0.44
+starlette==0.50.0
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+uvicorn==0.38.0
+psycopg2-binary==2.9.11
+</file>
+
+<file path="alembic.ini">
+# A generic, single database configuration.
+
+[alembic]
+# path to migration scripts.
+# this is typically a path given in POSIX (e.g. forward slashes)
+# format, relative to the token %(here)s which refers to the location of this
+# ini file
+script_location = alembic
+# template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+# Uncomment the line below if you want the files to be prepended with date and time
+# see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
+# for all available tokens
+# file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+
+# sys.path path, will be prepended to sys.path if present.
+# defaults to the current working directory.  for multiple paths, the path separator
+# is defined by "path_separator" below.
+prepend_sys_path = .
+
+
+# timezone to use when rendering the date within the migration file
+# as well as the filename.
+# If specified, requires the tzdata library which can be installed by adding
+# `alembic[tz]` to the pip requirements.
+# string value is passed to ZoneInfo()
+# leave blank for localtime
+# timezone =
+
+# max length of characters to apply to the "slug" field
+# truncate_slug_length = 40
+
+# set to 'true' to run the environment during
+# the 'revision' command, regardless of autogenerate
+# revision_environment = false
+
+# set to 'true' to allow .pyc and .pyo files without
+# a source .py file to be detected as revisions in the
+# versions/ directory
+# sourceless = false
+
+# version location specification; This defaults
+# to <script_location>/versions.  When using multiple version
+# directories, initial revisions must be specified with --version-path.
+# The path separator used here should be the separator specified by "path_separator"
+# below.
+# version_locations = %(here)s/bar:%(here)s/bat:%(here)s/alembic/versions
+
+# path_separator; This indicates what character is used to split lists of file
+# paths, including version_locations and prepend_sys_path within configparser
+# files such as alembic.ini.
+# The default rendered in new alembic.ini files is "os", which uses os.pathsep
+# to provide os-dependent path splitting.
+#
+# Note that in order to support legacy alembic.ini files, this default does NOT
+# take place if path_separator is not present in alembic.ini.  If this
+# option is omitted entirely, fallback logic is as follows:
+#
+# 1. Parsing of the version_locations option falls back to using the legacy
+#    "version_path_separator" key, which if absent then falls back to the legacy
+#    behavior of splitting on spaces and/or commas.
+# 2. Parsing of the prepend_sys_path option falls back to the legacy
+#    behavior of splitting on spaces, commas, or colons.
+#
+# Valid values for path_separator are:
+#
+# path_separator = :
+# path_separator = ;
+# path_separator = space
+# path_separator = newline
+#
+# Use os.pathsep. Default configuration used for new projects.
+path_separator = os
+
+# set to 'true' to search source files recursively
+# in each "version_locations" directory
+# new in Alembic version 1.10
+# recursive_version_locations = false
+
+# the output encoding used when revision files
+# are written from script.py.mako
+# output_encoding = utf-8
+
+# database URL.  This is consumed by the user-maintained env.py script only.
+# other means of configuring database URLs may be customized within the env.py
+# file.
+sqlalchemy.url = postgresql://
+
+
+[post_write_hooks]
+# post_write_hooks defines scripts or Python functions that are run
+# on newly generated revision scripts.  See the documentation for further
+# detail and examples
+
+# format using "black" - use the console_scripts runner, against the "black" entrypoint
+# hooks = black
+# black.type = console_scripts
+# black.entrypoint = black
+# black.options = -l 79 REVISION_SCRIPT_FILENAME
+
+# lint with attempts to fix using "ruff" - use the module runner, against the "ruff" module
+# hooks = ruff
+# ruff.type = module
+# ruff.module = ruff
+# ruff.options = check --fix REVISION_SCRIPT_FILENAME
+
+# Alternatively, use the exec runner to execute a binary found on your PATH
+# hooks = ruff
+# ruff.type = exec
+# ruff.executable = ruff
+# ruff.options = check --fix REVISION_SCRIPT_FILENAME
+
+# Logging configuration.  This is also consumed by the user-maintained
+# env.py script only.
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARNING
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARNING
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+</file>
+
+<file path="main.py">
+from fastapi import FastAPI
+from database import engine, Base
+from routers import auth, business_profiles, products, fixed_expenses, reports
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+
+#ניסויים
+# יצירת טבלאות אם לא קיימות
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # מאפשר לכל אתר (כולל Vercel) לגשת
+    allow_credentials=True,
+    allow_methods=["*"],  # מאפשר את כל סוגי הבקשות (POST, GET וכו')
+    allow_headers=["*"],  # מאפשר את כל סוגי ה-Headers
+)
+
+app.include_router(auth.router)
+app.include_router(business_profiles.router)
+app.include_router(products.router)
+app.include_router(fixed_expenses.router)
+app.include_router(reports.router)
+
+@app.get("/")
+def root():
+    return {"status": "backend working"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.get("/health/db")
+def health_db():
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok", "db": "connected"}
+
+@app.get("/debug/db")
+def debug_db():
+    with engine.connect() as conn:
+        db = conn.execute(text("select current_database()")).scalar()
+        schema = conn.execute(text("select current_schema()")).scalar()
+        cnt = conn.execute(text("select count(*) from users")).scalar()
+    return {"database": db, "schema": schema, "users_count": cnt}
+</file>
+
+</files>

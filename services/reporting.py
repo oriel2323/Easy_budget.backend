@@ -1,11 +1,12 @@
 from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from typing import Dict, Any
 
 from models.product import Product
 from models.fixed_expense import FixedExpense
 from models.fixed_expense_category import FixedExpenseCategory
-
+from models.business_profile import BusinessProfile
 
 MONTHS_HE = [
     "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
@@ -236,3 +237,133 @@ def build_pnl_report(db: Session, user_id: int):
         "table_full": {"columns": columns, "sections": sections},
         "table_yearly_summary": yearly_summary,
     }
+
+
+def generate_email_html(report_data: Dict[str, Any], business_profile: BusinessProfile) -> str:
+    """
+    יוצר תבנית HTML למייל מתוך נתוני הדוח
+    """
+    
+    def format_currency(val):
+        # המרה ל-float לצורך פורמט מחרוזת פייתון סטנדרטי
+        return "₪{:,.0f}".format(float(val))
+
+    summary_cards = ""
+    # בניית הכרטיסים העליונים (KPIs)
+    # המבנה של yearly_summary הוא רשימה של מילונים עם key, label, value (Decimal)
+    for item in report_data.get('table_yearly_summary', []):
+        val = item['value']
+        # צבעים: רווח חיובי = ירוק, הוצאות = אדום עדין
+        color = "#10b981" # ירוק ברירת מחדל
+        if "expense" in item['key'] or "cost" in item['key'] or "cogs" in item['key']:
+            color = "#f43f5e" # אדום
+        elif val < 0:
+            color = "#ef4444" # אדום חזק להפסד
+        
+        val_display = format_currency(val)
+        
+        summary_cards += f"""
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; width: 45%; margin-bottom: 10px; display: inline-block; vertical-align: top; box-sizing: border-box; margin-right: 2%;">
+            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; font-weight: bold;">{item['label']}</div>
+            <div style="font-size: 18px; font-weight: bold; color: {color}; margin-top: 5px;">{val_display}</div>
+        </div>
+        """
+    
+    # בניית טבלת הנתונים ל-HTML
+    # המבנה: table_full -> sections -> rows -> values
+    table_rows_html = ""
+    sections = report_data.get('table_full', {}).get('sections', [])
+    
+    for section in sections:
+        table_rows_html += f"""
+        <tr style="background-color: #f3f4f6;">
+            <td colspan="3" style="padding: 10px; font-weight: bold; border-bottom: 2px solid #e5e7eb; color: #374151;">{section['title']}</td>
+        </tr>
+        """
+        for row in section['rows']:
+            # הערך הראשון הוא ינואר (או ממוצע חודשי בחישובים שלך), האחרון הוא השנתי
+            monthly = row['values'][0] 
+            yearly = row['values'][-1]
+            
+            # בדיקה אם זה כמות או כסף
+            is_qty = "כמות" in section['title']
+            fmt = (lambda x: str(int(x))) if is_qty else format_currency
+
+            table_rows_html += f"""
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; color: #4b5563;">{row['label']}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: left;">{fmt(monthly)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: left; font-weight: bold;">{fmt(yearly)}</td>
+            </tr>
+            """
+        
+        # שורת סיכום למקטע (אם קיימת)
+        if section.get('total_row'):
+             row = section['total_row']
+             monthly = row['values'][0]
+             yearly = row['values'][-1]
+             
+             is_qty = "כמות" in section['title']
+             fmt = (lambda x: str(int(x))) if is_qty else format_currency
+
+             table_rows_html += f"""
+            <tr style="background-color: #eef2ff;">
+                <td style="padding: 8px; border-bottom: 1px solid #c7d2fe; color: #312e81; font-weight: bold;">{row['label']}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #c7d2fe; text-align: left; font-weight: bold; color: #312e81;">{fmt(monthly)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #c7d2fe; text-align: left; font-weight: bold; color: #312e81;">{fmt(yearly)}</td>
+            </tr>
+            """
+
+    # שם העסק
+    biz_name = business_profile.business_name if business_profile else "לקוח יקר"
+
+    # תבנית ה-HTML המלאה
+    html = f"""
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: 'Helvetica', 'Arial', sans-serif; background-color: #f9fafb; margin: 0; padding: 0; direction: rtl; text-align: right; }}
+            .container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div style="background-color: #f3f4f6; padding: 40px 0;">
+            <div class="container">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #4f46e5; margin: 0;">Budget AI</h1>
+                    <p style="color: #6b7280; margin-top: 5px;">הדוח הפיננסי שלך מוכן</p>
+                </div>
+                
+                <div style="margin-bottom: 20px; background: #f5f7ff; padding: 15px; border-radius: 8px; border-right: 4px solid #4f46e5;">
+                    <h2 style="margin: 0; font-size: 18px; color: #1f2937;">שלום {biz_name},</h2>
+                    <p style="margin-top: 5px; color: #4b5563;">להלן סיכום התחזית השנתית שיצרת במערכת.</p>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 30px;">
+                    {summary_cards}
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background-color: #1f2937; color: white;">
+                            <th style="padding: 10px; text-align: right;">סעיף</th>
+                            <th style="padding: 10px; text-align: left;">חודשי</th>
+                            <th style="padding: 10px; text-align: left;">שנתי</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_rows_html}
+                    </tbody>
+                </table>
+                
+                <div style="margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                    <p>© 2024 Budget AI. כל הזכויות שמורות.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
